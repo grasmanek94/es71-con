@@ -1,50 +1,36 @@
-#include "XBee.h"
-#include "Printers.h"
+#include "XBee.h" 
 
-XBeeWithCallbacks xbee;
-
-void zbReceive(ZBRxResponse& rx, uintptr_t)
-{
-    ZBTxRequest tx;
-    tx.setAddress64(rx.getRemoteAddress64());
-    tx.setAddress16(rx.getRemoteAddress16());
-    tx.setPayload(rx.getFrameData() + rx.getDataOffset(), rx.getDataLength());
-    
-    xbee.send(tx);
-    Serial.println(F("Sending ZBTxRequest"));
-}
-
-void receive16(Rx16Response& rx, uintptr_t)
-{
-    Tx16Request tx;
-    tx.setAddress16(rx.getRemoteAddress16());
-    tx.setPayload(rx.getFrameData() + rx.getDataOffset(), rx.getDataLength());
-    
-    xbee.send(tx);
-    Serial.println(F("Sending Tx16Request"));
-}
-
-void receive64(Rx64Response& rx, uintptr_t) 
-{
-    Tx64Request tx;
-    tx.setAddress64(rx.getRemoteAddress64());
-    tx.setPayload(rx.getFrameData() + rx.getDataOffset(), rx.getDataLength());
-    
-    xbee.send(tx);
-    Serial.println(F("Sending Tx64Request"));
-}
+XBee xbee = XBee();
+XBeeResponse response = XBeeResponse();
+ZBRxResponse rx = ZBRxResponse();
 
 void setup()
 {
-    Serial.begin(9600);
-    xbee.setSerial(Serial);
-    
-    xbee.onZBRxResponse(zbReceive);
-    xbee.onRx16Response(receive16);
-    xbee.onRx64Response(receive64);
+	Serial.begin(9600);
+	xbee.begin(Serial);
 }
 
-void loop() 
+void loop()
 {
-    xbee.loop();
+	String sample;
+	xbee.readPacket();
+	if (xbee.getResponse().isAvailable())
+	{
+		Serial.println(xbee.getResponse().getApiId());
+		if (xbee.getResponse().getApiId() == ZB_RX_RESPONSE)
+		{
+			xbee.getResponse().getZBRxResponse(rx);
+			for (int i = 0; i < rx.getDataLength(); i++) 
+			{
+				sample += (char)rx.getData(i);
+			}
+			Serial.println(sample);
+		}
+	}
+	else if (xbee.getResponse().isError())
+	{
+		Serial.println("Error reading packet. Error code: ");
+		Serial.println(xbee.getResponse().getErrorCode());
+	}
+	delay(100);
 }
