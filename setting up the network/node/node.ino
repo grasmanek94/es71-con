@@ -2,11 +2,40 @@
 
 #include "XBee.h"
 #include "Printers.h"
+#include "zigbee.h"
+
+#ifndef lengthof
+#define lengthof(x) (sizeof(x)/sizeof(*x))
+#endif
+
+struct node_info {
+  XBeeAddress64 addr64;
+  uint16_t addr16;
+  uint8_t type: 2;
+  uint8_t visited: 1;
+};
 
 int nodes_found;
+float startTime = 0;
 
 node_info nodes[10];
 XBeeWithCallbacks xbee;
+
+
+ZBExplicitTxRequest buildZdoRequest(XBeeAddress64 addr, uint16_t cluster_id, uint8_t *payload, size_t len) {
+  ZBExplicitTxRequest tx(addr, payload, len);
+  tx.setSrcEndpoint(WPAN_ENDPOINT_ZDO);
+  tx.setDstEndpoint(WPAN_ENDPOINT_ZDO);
+  tx.setClusterId(cluster_id);
+  tx.setProfileId(WPAN_PROFILE_ZDO);
+  tx.setFrameId(xbee.getNextFrameId());
+  return tx;
+}
+
+uint8_t getNextTransactionId() {
+  static uint8_t id = 0;
+  return id++;
+}
 
 bool getAtValue(uint8_t cmd[2], uint8_t *buf, size_t len, uint16_t timeout = 150)
 {
@@ -178,19 +207,74 @@ void scan_network() {
   Serial.println(F("Finished scanning"));
   Serial.println(F("Press a number to scan that node, or press r to rescan the network"));
 }
+bool matchZdoReply(ZBExplicitRxResponse& rx, uintptr_t data) {
+  uint8_t *payload = rx.getFrameData() + rx.getDataOffset();
+  uint8_t transactionId = (uint8_t)data;
 
-void blink()
+  return rx.getSrcEndpoint() == 0 &&
+         rx.getDstEndpoint() == 0 &&
+         rx.getProfileId() == WPAN_PROFILE_ZDO &&
+         payload[0] == transactionId;
+}
+bool handleZdoRequest(const __FlashStringHelper *msg, ZBExplicitRxResponse& rx, XBeeAddress64 addr, uint16_t cluster_id, uint8_t *payload, size_t len) {
+  ZBExplicitTxRequest tx = buildZdoRequest(addr, cluster_id, (uint8_t*)payload, len);
+  xbee.send(tx);
+
+  uint8_t transaction_id = payload[0];
+  // This waits up to 5000 seconds, since the default TX timeout (NH
+  // value of 1.6s, times three retries) is 4.8s.
+  uint8_t status = xbee.waitFor(rx, 5000, matchZdoReply, transaction_id, tx.getFrameId());
+  switch(status) {
+    case 0: // Success
+      return true;
+    case XBEE_WAIT_TIMEOUT:
+      Serial.print(F("No reply received from 0x"));
+      printHex(Serial, addr.getMsb());
+      printHex(Serial, addr.getLsb());
+      Serial.print(F(" while "));
+      Serial.print(msg);
+      Serial.println(F("."));
+      return false;
+    default:
+      Serial.print(F("Failed to send to 0x"));
+      printHex(Serial, addr.getMsb());
+      printHex(Serial, addr.getLsb());
+      Serial.print(F(" while "));
+      Serial.print(msg);
+      Serial.print(F(". Status: 0x"));
+      printHex(Serial, status);
+      Serial.println();
+      return false;
+  }
+}
+
+void blinkLed()
 {
-
+  
+  if(nodes_found>0)
+  {
+    double delayTime = 1000/(double)nodes_found;
+    if(millis()>startTime+delayTime)
+    {
+      startTime = millis();
+      digitalWrite(LED_BUILTIN,!digitalRead(LED_BUILTIN));
+    }
+  }
+  else
+  {
+    digitalWrite(LED_BUILTIN, LOW);
+  }
 }
 
 void setup()
 {
+  pinMode(LED_BUILTIN,OUTPUT);
 }
 
 void loop()
 {
   nodes_found = 0;
   scan_network();
+  blinkLed();
 
 }
