@@ -4,6 +4,7 @@
 #include "Printers.h"
 #include "zigbee.h"
 #include "RunningMedian.h"
+#include <SoftwareSerial.h>
 
 #ifndef lengthof
 #define lengthof(x) (sizeof(x)/sizeof(*x))
@@ -23,6 +24,10 @@ float startTime = 0;
 node_info nodes[10];
 XBeeWithCallbacks xbee;
 RunningMedian samples = RunningMedian(10);
+
+int new_rx = 9;
+int new_tx = 10;
+SoftwareSerial mySerial(new_rx, new_tx); // RX, TX
 
 ZBExplicitTxRequest buildZdoRequest(XBeeAddress64 addr, uint16_t cluster_id, uint8_t *payload, size_t len) {
   ZBExplicitTxRequest tx(addr, payload, len);
@@ -261,16 +266,19 @@ void blinkLed()
     
     for(int i = 0; i < nodes_found; ++i)
     {
+        Serial.print("y");
         while(millis()<(startTime+delayTime))
         {
             delay(1);
         }
+        Serial.print("n");
         startTime = millis();
         digitalWrite(LED_BUILTIN,0);
         while(millis()<(startTime+delayTime))
         {
             delay(1);
         }
+        Serial.println("z");
         startTime = millis();
         digitalWrite(LED_BUILTIN,1);
     }
@@ -288,6 +296,9 @@ void blinkLed()
 
 void setup()
 {
+  Serial.begin(115200);
+  mySerial.begin(9600);
+  xbee.setSerial(mySerial);
   pinMode(LED_BUILTIN,OUTPUT);
 }
 
@@ -296,5 +307,4 @@ void loop()
   nodes_found = 0;
   scan_network();
   blinkLed();
-
 }
