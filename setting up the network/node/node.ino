@@ -49,15 +49,18 @@ float nextTime(float rateParameter)
   return -log(1.0f - random(RAND_MAX) / ((float)RAND_MAX + 1)) / rateParameter;
 }
 
-void setup() {
+void setup() { 
+  // Start the serial port
+  Serial.begin(9600);  
+
+  Serial.print("Setup...");
+  
   // put your setup code here, to run once:
   pinMode (3,OUTPUT);    // put XBee to sleep0
   digitalWrite(3,HIGH);
   delay(5000);
   digitalWrite(3,LOW); // wake up any attached xbees
 
-  // Start the serial port
-  Serial.begin(9600);
   // start soft serial
   nss.begin(9600);
   // Tell XBee to use Hardware Serial. It's also possible to use SoftwareSerial
@@ -67,6 +70,8 @@ void setup() {
   randomSeed(analogRead(A0)); // This seeds the random number generator
 
   delay(1000);
+
+  Serial.println(" done.");
 }
 
 void loop() {
@@ -135,8 +140,10 @@ void loop() {
               neighbour_ids += String(response.getValue()[i + 2], HEX);
             }
           }
-
-          Serial.print("Neighbour list: ");
+          
+          neighbour_ids += "\n";
+          
+          Serial.print("Neighbour list: \n");
           Serial.print(neighbour_ids);
           Serial.print("\n");
 
