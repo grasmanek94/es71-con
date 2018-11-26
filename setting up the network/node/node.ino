@@ -125,7 +125,8 @@ void scan_network() {
                             rx, nodes[next].addr64, ZDO_MGMT_LQI_REQ,
                             (uint8_t*)&payload, sizeof(payload)))
         break;
-      nodes[next].rssi = rx.getRssi();
+      //nodes[next].rssi = rx.getRssi();
+      nodes[next].rssi = 0;
       zdo_mgmt_lqi_rsp_t *rsp = (zdo_mgmt_lqi_rsp_t*)(rx.getFrameData() + rx.getDataOffset());
       if (rsp->status != 0) {
         if (rsp->status != ZDO_STATUS_NOT_SUPPORTED) {
@@ -252,28 +253,36 @@ bool handleZdoRequest(const __FlashStringHelper *msg, ZBExplicitRxResponse& rx, 
 
 void blinkLed()
 {
-  
+  digitalWrite(LED_BUILTIN, LOW);
   if(nodes_found>0)
   {
-    double delayTime = 1000/(double)nodes_found;
-    if(millis()>startTime+delayTime)
+    double delayTime = 10000.0/((double)nodes_found*2.0);
+    startTime = millis();
+    
+    for(int i = 0; i < nodes_found; ++i)
     {
-      startTime = millis();
-      digitalWrite(LED_BUILTIN,!digitalRead(LED_BUILTIN));
+        while(millis()<(startTime+delayTime))
+        {
+            delay(1);
+        }
+        startTime = millis();
+        digitalWrite(LED_BUILTIN,0);
+        while(millis()<(startTime+delayTime))
+        {
+            delay(1);
+        }
+        startTime = millis();
+        digitalWrite(LED_BUILTIN,1);
     }
     
-    samples.clear();
+    /*samples.clear();
     for(int i = 0; i < nodes_found; ++i)
     {
         samples.add(nodes[i].rssi);
     }
     float mrssi = samples.getMedian();
     // set red if bad mean rssi
-    digitalWrite(5,mrssi < 100);
-  }
-  else
-  {
-    digitalWrite(LED_BUILTIN, LOW);
+    digitalWrite(5,mrssi < 100);*/
   }
 }
 
