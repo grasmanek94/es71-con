@@ -3,6 +3,7 @@
 #include "XBee.h"
 #include "Printers.h"
 #include "zigbee.h"
+#include "RunningMedian.h"
 
 #ifndef lengthof
 #define lengthof(x) (sizeof(x)/sizeof(*x))
@@ -13,6 +14,7 @@ struct node_info {
   uint16_t addr16;
   uint8_t type: 2;
   uint8_t visited: 1;
+  uint8_t rssi;
 };
 
 int nodes_found;
@@ -20,7 +22,7 @@ float startTime = 0;
 
 node_info nodes[10];
 XBeeWithCallbacks xbee;
-
+RunningMedian samples = RunningMedian(10);
 
 ZBExplicitTxRequest buildZdoRequest(XBeeAddress64 addr, uint16_t cluster_id, uint8_t *payload, size_t len) {
   ZBExplicitTxRequest tx(addr, payload, len);
@@ -123,7 +125,7 @@ void scan_network() {
                             rx, nodes[next].addr64, ZDO_MGMT_LQI_REQ,
                             (uint8_t*)&payload, sizeof(payload)))
         break;
-
+      nodes[next].rssi = rx.getRssi();
       zdo_mgmt_lqi_rsp_t *rsp = (zdo_mgmt_lqi_rsp_t*)(rx.getFrameData() + rx.getDataOffset());
       if (rsp->status != 0) {
         if (rsp->status != ZDO_STATUS_NOT_SUPPORTED) {
@@ -259,6 +261,15 @@ void blinkLed()
       startTime = millis();
       digitalWrite(LED_BUILTIN,!digitalRead(LED_BUILTIN));
     }
+    
+    samples.clear();
+    for(int i = 0; i < 10; ++i)
+    {
+        samples.add(nodes[i].rssi);
+    }
+    float mrssi = samples.getMedian();
+    // set red if bad mean rssi
+    digitalWrite(5,mrssi < 100);
   }
   else
   {
